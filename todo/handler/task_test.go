@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"mkmgo-todo/todo/pagination"
 	"mkmgo-todo/todo/task"
 	"net/http"
 	"net/http/httptest"
@@ -21,7 +22,7 @@ import (
 
 type MockTaskService struct {
 	WriteTaskFunc   func(ctx context.Context, request *task.WriteTaskRequest) (*task.GetTaskResponse, error)
-	GetAllTasksFunc func(ctx context.Context) ([]task.GetTaskResponse, error)
+	GetAllTasksFunc func(ctx context.Context, request task.GetAllTaskRequest) ([]task.GetTaskResponse, error)
 	DeleteTaskFunc  func(ctx context.Context, id uint64) error
 }
 
@@ -32,9 +33,9 @@ func (m *MockTaskService) WriteTask(ctx context.Context, request *task.WriteTask
 	return nil, nil
 }
 
-func (m *MockTaskService) GetAllTasks(ctx context.Context) ([]task.GetTaskResponse, error) {
+func (m *MockTaskService) GetAllTasks(ctx context.Context, request task.GetAllTaskRequest) ([]task.GetTaskResponse, error) {
 	if m.GetAllTasksFunc != nil {
-		return m.GetAllTasksFunc(ctx)
+		return m.GetAllTasksFunc(ctx, request)
 	}
 	return nil, nil
 }
@@ -51,12 +52,13 @@ func (m *MockTaskService) DeleteTask(ctx context.Context, id uint64) error {
 */
 
 const (
-	testTitle       = "Makima"
-	testDescription = "Makima super kawaii"
-	testID          = 1
-	invalidJSONBody = `{"title":"Makima","description"}`
-	validJSONBody   = `{"title":"Makima","description":"Makima super kawaii"}`
-	tasksUrl        = "/tasks"
+	testTitle               = "Makima"
+	testDescription         = "Makima super kawaii"
+	testID                  = 1
+	invalidWriteTaskRequest = `{"title":"Makima","description"}`
+	validWriteTaskRequest   = `{"title":"Makima","description":"Makima super kawaii"}`
+	validGetAllTaskRequest  = `{"page":1,"pageSize":10, "sortBy":"title", "orderBy":"asc"}`
+	tasksUrl                = "/tasks"
 )
 
 func TestWriteTaskHandler(t *testing.T) {
@@ -74,7 +76,7 @@ func TestWriteTaskHandler(t *testing.T) {
 
 	handler := NewTaskHandler(mockService)
 
-	r := httptest.NewRequest(http.MethodPost, tasksUrl, bytes.NewBufferString(validJSONBody))
+	r := httptest.NewRequest(http.MethodPost, tasksUrl, bytes.NewBufferString(validWriteTaskRequest))
 	w := httptest.NewRecorder()
 	handler.WriteTaskHandler(w, r)
 
@@ -95,7 +97,7 @@ func TestWriteTaskHandlerWhenInvalidJSONRequest(t *testing.T) {
 	mockService := &MockTaskService{}
 	handler := NewTaskHandler(mockService)
 
-	r := httptest.NewRequest(http.MethodPost, tasksUrl, bytes.NewBufferString(invalidJSONBody))
+	r := httptest.NewRequest(http.MethodPost, tasksUrl, bytes.NewBufferString(invalidWriteTaskRequest))
 	w := httptest.NewRecorder()
 	handler.WriteTaskHandler(w, r)
 
@@ -116,7 +118,7 @@ func TestWriteTaskHandlerWhenSvcWriteTaskFail(t *testing.T) {
 
 	handler := NewTaskHandler(mockService)
 
-	r := httptest.NewRequest(http.MethodPost, tasksUrl, bytes.NewBufferString(validJSONBody))
+	r := httptest.NewRequest(http.MethodPost, tasksUrl, bytes.NewBufferString(validWriteTaskRequest))
 	w := httptest.NewRecorder()
 	handler.WriteTaskHandler(w, r)
 
@@ -130,7 +132,7 @@ func TestWriteTaskHandlerWhenSvcWriteTaskFail(t *testing.T) {
 
 func TestGetAllTaskHandler(t *testing.T) {
 	mockService := &MockTaskService{
-		GetAllTasksFunc: func(ctx context.Context) ([]task.GetTaskResponse, error) {
+		GetAllTasksFunc: func(ctx context.Context, request task.GetAllTaskRequest) ([]task.GetTaskResponse, error) {
 			var responses []task.GetTaskResponse
 			response := task.GetTaskResponse{
 				ID:          testID,
@@ -149,11 +151,20 @@ func TestGetAllTaskHandler(t *testing.T) {
 
 	handler := NewTaskHandler(mockService)
 
-	r := httptest.NewRequest(http.MethodGet, tasksUrl, nil)
+	r := httptest.NewRequest(http.MethodGet, tasksUrl, bytes.NewBufferString(validGetAllTaskRequest))
 	w := httptest.NewRecorder()
 	handler.GetAllTaskHandler(w, r)
 
-	responses, err := handler.taskSvc.GetAllTasks(context.Background())
+	pagination := pagination.PaginationRequest{
+		Page:     1,
+		PageSize: 10,
+		Order:    "title",
+		SortBy:   "asc",
+	}
+	request := task.GetAllTaskRequest{
+		PaginationRequest: &pagination,
+	}
+	responses, err := handler.taskSvc.GetAllTasks(context.Background(), request)
 	assert.NoError(t, err)
 
 	for i, response := range responses {
@@ -167,18 +178,27 @@ func TestGetAllTaskHandler(t *testing.T) {
 
 func TestGetAllTaskHandlerWhenSvcGetAllFail(t *testing.T) {
 	mockService := &MockTaskService{
-		GetAllTasksFunc: func(ctx context.Context) ([]task.GetTaskResponse, error) {
+		GetAllTasksFunc: func(ctx context.Context, request task.GetAllTaskRequest) ([]task.GetTaskResponse, error) {
 			return nil, fmt.Errorf("get all task error")
 		},
 	}
 
 	handler := NewTaskHandler(mockService)
 
-	r := httptest.NewRequest(http.MethodGet, tasksUrl, nil)
+	pagination := pagination.PaginationRequest{
+		Page:     1,
+		PageSize: 10,
+		Order:    "title",
+		SortBy:   "asc",
+	}
+	request := task.GetAllTaskRequest{
+		PaginationRequest: &pagination,
+	}
+	r := httptest.NewRequest(http.MethodGet, tasksUrl, bytes.NewBufferString(validGetAllTaskRequest))
 	w := httptest.NewRecorder()
 	handler.GetAllTaskHandler(w, r)
 
-	_, err := handler.taskSvc.GetAllTasks(context.Background())
+	_, err := handler.taskSvc.GetAllTasks(context.Background(), request)
 	assert.Error(t, err)
 }
 

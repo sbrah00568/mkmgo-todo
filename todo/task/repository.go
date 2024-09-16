@@ -18,9 +18,12 @@ func (r *TaskRepositoryImpl) WriteTask(ctx context.Context, task *Task) error {
 	return r.DB.WithContext(ctx).Create(task).Error
 }
 
-func (r *TaskRepositoryImpl) GetAllTasks(ctx context.Context) ([]Task, error) {
+func (r *TaskRepositoryImpl) GetAllTasks(ctx context.Context, request GetAllTaskRequest) ([]Task, error) {
 	var tasks []Task
-	err := r.DB.WithContext(ctx).Find(&tasks).Error
+	err := r.DB.WithContext(ctx).Model(&Task{}).
+		Limit(request.PaginationRequest.PageSize).
+		Offset(request.PaginationRequest.GetOffset()).
+		Find(&tasks).Error
 	return tasks, err
 }
 

@@ -4,7 +4,7 @@ import "context"
 
 type TaskRepository interface {
 	WriteTask(ctx context.Context, task *Task) error
-	GetAllTasks(ctx context.Context) ([]Task, error)
+	GetAllTasks(ctx context.Context, request GetAllTaskRequest) ([]Task, error)
 	DeleteTask(ctx context.Context, id uint64) error
 }
 
@@ -33,8 +33,8 @@ func (svc *TaskServiceImpl) WriteTask(ctx context.Context, req *WriteTaskRequest
 	}, nil
 }
 
-func (svc *TaskServiceImpl) GetAllTasks(ctx context.Context) ([]GetTaskResponse, error) {
-	tasks, err := svc.repo.GetAllTasks(ctx)
+func (svc *TaskServiceImpl) GetAllTasks(ctx context.Context, request GetAllTaskRequest) ([]GetTaskResponse, error) {
+	tasks, err := svc.repo.GetAllTasks(ctx, request)
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,7 @@
 package task
 
 import (
+	"mkmgo-todo/todo/pagination"
 	"time"
 
 	"gorm.io/gorm"
@@ -29,4 +30,8 @@ type GetTaskResponse struct {
 	Title       string    `json:"title"`
 	Description string    `json:"description"`
 	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+type GetAllTaskRequest struct {
+	PaginationRequest *pagination.PaginationRequest
 }

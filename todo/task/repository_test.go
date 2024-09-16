@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"mkmgo-todo/todo/pagination"
 	"regexp"
 	"testing"
 	"time"
@@ -60,7 +61,16 @@ func TestGetAllTasksMock(t *testing.T) {
 			AddRow(1, "Task 1", "Description 1", time.Now(), time.Now(), nil).
 			AddRow(2, "Task 2", "Description 2", time.Now(), time.Now(), nil))
 
-	gotTasks, err := repo.GetAllTasks(context.Background())
+	pagination := pagination.PaginationRequest{
+		Page:     1,
+		PageSize: 10,
+		Order:    "title",
+		SortBy:   "asc",
+	}
+	request := GetAllTaskRequest{
+		PaginationRequest: &pagination,
+	}
+	gotTasks, err := repo.GetAllTasks(context.Background(), request)
 
 	assert.NoError(t, err)
 

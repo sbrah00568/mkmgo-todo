@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"mkmgo-todo/todo/pagination"
 	"testing"
 	"time"
 
@@ -16,7 +17,7 @@ import (
 
 type MockTaskRepository struct {
 	WriteTaskFunc   func(ctx context.Context, task *Task) error
-	GetAllTasksFunc func(ctx context.Context) ([]Task, error)
+	GetAllTasksFunc func(ctx context.Context, request GetAllTaskRequest) ([]Task, error)
 	DeleteTaskFunc  func(ctx context.Context, id uint64) error
 }
 
@@ -27,9 +28,9 @@ func (m *MockTaskRepository) WriteTask(ctx context.Context, task *Task) error {
 	return nil
 }
 
-func (m *MockTaskRepository) GetAllTasks(ctx context.Context) ([]Task, error) {
+func (m *MockTaskRepository) GetAllTasks(ctx context.Context, request GetAllTaskRequest) ([]Task, error) {
 	if m.GetAllTasksFunc != nil {
-		return m.GetAllTasksFunc(ctx)
+		return m.GetAllTasksFunc(ctx, request)
 	}
 	return []Task{}, nil
 }
@@ -91,7 +92,7 @@ func TestWriteTaskWhenFailAtRepoWriteTask(t *testing.T) {
 
 func TestGetAllTasks(t *testing.T) {
 	mockRepo := &MockTaskRepository{
-		GetAllTasksFunc: func(ctx context.Context) ([]Task, error) {
+		GetAllTasksFunc: func(ctx context.Context, request GetAllTaskRequest) ([]Task, error) {
 			return []Task{
 				{ID: 1, Title: "Task 1", Description: "Description 1", UpdatedAt: time.Now()},
 				{ID: 2, Title: "Task 2", Description: "Description 2", UpdatedAt: time.Now()},
@@ -100,7 +101,16 @@ func TestGetAllTasks(t *testing.T) {
 	}
 	service := NewTaskServiceImpl(mockRepo)
 
-	resp, err := service.GetAllTasks(context.Background())
+	pagination := pagination.PaginationRequest{
+		Page:     1,
+		PageSize: 10,
+		Order:    "title",
+		SortBy:   "asc",
+	}
+	request := GetAllTaskRequest{
+		PaginationRequest: &pagination,
+	}
+	resp, err := service.GetAllTasks(context.Background(), request)
 
 	assert.NoError(t, err)
 	assert.Len(t, resp, 2)
@@ -110,14 +120,23 @@ func TestGetAllTasks(t *testing.T) {
 
 func TestGetAllTaskFailAtRepoGetAllTask(t *testing.T) {
 	mockRepo := &MockTaskRepository{
-		GetAllTasksFunc: func(ctx context.Context) ([]Task, error) {
+		GetAllTasksFunc: func(ctx context.Context, request GetAllTaskRequest) ([]Task, error) {
 			return nil, fmt.Errorf("get all task error")
 		},
 	}
 
 	service := NewTaskServiceImpl(mockRepo)
 
-	resp, err := service.GetAllTasks(context.Background())
+	pagination := pagination.PaginationRequest{
+		Page:     1,
+		PageSize: 10,
+		Order:    "title",
+		SortBy:   "asc",
+	}
+	request := GetAllTaskRequest{
+		PaginationRequest: &pagination,
+	}
+	resp, err := service.GetAllTasks(context.Background(), request)
 
 	assert.Error(t, err)
 	assert.Nil(t, resp)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"mkmgo-todo/todo/pagination"
 	"mkmgo-todo/todo/task"
 	"net/http"
 	"strconv"
@@ -13,7 +14,7 @@ import (
 
 type TaskService interface {
 	WriteTask(ctx context.Context, request *task.WriteTaskRequest) (*task.GetTaskResponse, error)
-	GetAllTasks(ctx context.Context) ([]task.GetTaskResponse, error)
+	GetAllTasks(ctx context.Context, request task.GetAllTaskRequest) ([]task.GetTaskResponse, error)
 	DeleteTask(ctx context.Context, id uint64) error
 }
 
@@ -40,7 +41,9 @@ func (h *TaskHandler) WriteTaskHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TaskHandler) GetAllTaskHandler(w http.ResponseWriter, r *http.Request) {
-	res, err := h.taskSvc.GetAllTasks(r.Context())
+	pagination := pagination.NewPaginationRequest(r)
+	request := task.GetAllTaskRequest{PaginationRequest: pagination}
+	res, err := h.taskSvc.GetAllTasks(r.Context(), request)
 	if err != nil {
 		writeResponse(w, http.StatusInternalServerError, err.Error())
 		return
