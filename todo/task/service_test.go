@@ -16,14 +16,14 @@ import (
 */
 
 type MockTaskRepository struct {
-	WriteTaskFunc   func(ctx context.Context, task *Task) error
+	SaveTaskFunc    func(ctx context.Context, task *Task) error
 	GetAllTasksFunc func(ctx context.Context, request GetAllTaskRequest) ([]Task, error)
 	DeleteTaskFunc  func(ctx context.Context, id uint64) error
 }
 
-func (m *MockTaskRepository) WriteTask(ctx context.Context, task *Task) error {
-	if m.WriteTaskFunc != nil {
-		return m.WriteTaskFunc(ctx, task)
+func (m *MockTaskRepository) SaveTask(ctx context.Context, task *Task) error {
+	if m.SaveTaskFunc != nil {
+		return m.SaveTaskFunc(ctx, task)
 	}
 	return nil
 }
@@ -46,9 +46,9 @@ func (m *MockTaskRepository) DeleteTask(ctx context.Context, id uint64) error {
 	Unit test for task/service.go
 */
 
-func TestWriteTask(t *testing.T) {
+func TestSaveTask(t *testing.T) {
 	mockRepo := &MockTaskRepository{
-		WriteTaskFunc: func(ctx context.Context, task *Task) error {
+		SaveTaskFunc: func(ctx context.Context, task *Task) error {
 			task.ID = 1
 			task.UpdatedAt = time.Now()
 			return nil
@@ -60,7 +60,7 @@ func TestWriteTask(t *testing.T) {
 		Title:       "New Task",
 		Description: "Task Description",
 	}
-	resp, err := service.WriteTask(context.Background(), req)
+	resp, err := service.SaveTask(context.Background(), req)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
@@ -69,9 +69,33 @@ func TestWriteTask(t *testing.T) {
 	assert.Equal(t, req.Description, resp.Description)
 }
 
-func TestWriteTaskWhenFailAtRepoWriteTask(t *testing.T) {
+func TestUpdateTask(t *testing.T) {
 	mockRepo := &MockTaskRepository{
-		WriteTaskFunc: func(ctx context.Context, task *Task) error {
+		SaveTaskFunc: func(ctx context.Context, task *Task) error {
+			task.ID = 1
+			task.UpdatedAt = time.Now()
+			return nil
+		},
+	}
+	service := NewTaskServiceImpl(mockRepo)
+
+	req := &WriteTaskRequest{
+		ID:          1,
+		Title:       "New Task",
+		Description: "Task Description",
+	}
+	resp, err := service.SaveTask(context.Background(), req)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Equal(t, uint64(1), resp.ID)
+	assert.Equal(t, req.Title, resp.Title)
+	assert.Equal(t, req.Description, resp.Description)
+}
+
+func TestSaveTaskWhenFailAtRepoSaveTask(t *testing.T) {
+	mockRepo := &MockTaskRepository{
+		SaveTaskFunc: func(ctx context.Context, task *Task) error {
 			return fmt.Errorf("write task error")
 		},
 	}
@@ -83,7 +107,7 @@ func TestWriteTaskWhenFailAtRepoWriteTask(t *testing.T) {
 		Description: "Task Description",
 	}
 
-	resp, err := service.WriteTask(context.Background(), req)
+	resp, err := service.SaveTask(context.Background(), req)
 
 	assert.Error(t, err)
 	assert.Nil(t, resp)

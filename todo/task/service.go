@@ -1,9 +1,11 @@
 package task
 
-import "context"
+import (
+	"context"
+)
 
 type TaskRepository interface {
-	WriteTask(ctx context.Context, task *Task) error
+	SaveTask(ctx context.Context, task *Task) error
 	GetAllTasks(ctx context.Context, request GetAllTaskRequest) ([]Task, error)
 	DeleteTask(ctx context.Context, id uint64) error
 }
@@ -16,20 +18,22 @@ func NewTaskServiceImpl(repo TaskRepository) *TaskServiceImpl {
 	return &TaskServiceImpl{repo: repo}
 }
 
-func (svc *TaskServiceImpl) WriteTask(ctx context.Context, req *WriteTaskRequest) (*GetTaskResponse, error) {
+func (svc *TaskServiceImpl) SaveTask(ctx context.Context, request *WriteTaskRequest) (*GetTaskResponse, error) {
 	task := Task{
-		Title:       req.Title,
-		Description: req.Description,
+		Title:       request.Title,
+		Description: request.Description,
 	}
-	err := svc.repo.WriteTask(ctx, &task)
-	if err != nil {
+	if request.ID != 0 {
+		task.ID = request.ID
+	}
+	if err := svc.repo.SaveTask(ctx, &task); err != nil {
 		return nil, err
 	}
 	return &GetTaskResponse{
 		ID:          task.ID,
 		Title:       task.Title,
 		Description: task.Description,
-		UpdatedAt:   task.UpdatedAt,
+		UpdatedAt:   task.FormattedUpdatedAt(),
 	}, nil
 }
 
@@ -38,18 +42,21 @@ func (svc *TaskServiceImpl) GetAllTasks(ctx context.Context, request GetAllTaskR
 	if err != nil {
 		return nil, err
 	}
-	var responses []GetTaskResponse
-	for _, task := range tasks {
-		responses = append(responses, GetTaskResponse{
+	responses := make([]GetTaskResponse, len(tasks))
+	for i, task := range tasks {
+		responses[i] = GetTaskResponse{
 			ID:          task.ID,
 			Title:       task.Title,
 			Description: task.Description,
-			UpdatedAt:   task.UpdatedAt,
-		})
+			UpdatedAt:   task.FormattedUpdatedAt(),
+		}
 	}
 	return responses, nil
 }
 
 func (svc *TaskServiceImpl) DeleteTask(ctx context.Context, id uint64) error {
-	return svc.repo.DeleteTask(ctx, id)
+	if err := svc.repo.DeleteTask(ctx, id); err != nil {
+		return err
+	}
+	return nil
 }

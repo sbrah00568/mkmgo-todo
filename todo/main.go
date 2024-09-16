@@ -69,6 +69,7 @@ type Handler struct {
 func setupRoutes(router *mux.Router, h Handler) {
 	router.HandleFunc("/todo/tasks/health", healthCheck).Methods("GET")
 	router.HandleFunc("/todo/tasks", h.taskHandler.WriteTaskHandler).Methods("POST")
+	router.HandleFunc("/todo/tasks/{id}", h.taskHandler.UpdateTaskHandler).Methods("PATCH")
 	router.HandleFunc("/todo/tasks", h.taskHandler.GetAllTaskHandler).Methods("GET")
 	router.HandleFunc("/todo/tasks/{id}", h.taskHandler.DeleteTaskHandler).Methods("DELETE")
 }

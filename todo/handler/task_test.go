@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
@@ -21,14 +20,14 @@ import (
 */
 
 type MockTaskService struct {
-	WriteTaskFunc   func(ctx context.Context, request *task.WriteTaskRequest) (*task.GetTaskResponse, error)
+	SaveTaskFunc    func(ctx context.Context, request *task.WriteTaskRequest) (*task.GetTaskResponse, error)
 	GetAllTasksFunc func(ctx context.Context, request task.GetAllTaskRequest) ([]task.GetTaskResponse, error)
 	DeleteTaskFunc  func(ctx context.Context, id uint64) error
 }
 
-func (m *MockTaskService) WriteTask(ctx context.Context, request *task.WriteTaskRequest) (*task.GetTaskResponse, error) {
-	if m.WriteTaskFunc != nil {
-		return m.WriteTaskFunc(ctx, request)
+func (m *MockTaskService) SaveTask(ctx context.Context, request *task.WriteTaskRequest) (*task.GetTaskResponse, error) {
+	if m.SaveTaskFunc != nil {
+		return m.SaveTaskFunc(ctx, request)
 	}
 	return nil, nil
 }
@@ -55,20 +54,22 @@ const (
 	testTitle               = "Makima"
 	testDescription         = "Makima super kawaii"
 	testID                  = 1
+	updatedAt               = "02 Jan 2006, 15:04 WIB"
 	invalidWriteTaskRequest = `{"title":"Makima","description"}`
 	validWriteTaskRequest   = `{"title":"Makima","description":"Makima super kawaii"}`
+	validUpdateTaskRequest  = `{"id":1, "title":"Makima","description":"Makima super kawaii"}`
 	validGetAllTaskRequest  = `{"page":1,"pageSize":10, "sortBy":"title", "orderBy":"asc"}`
 	tasksUrl                = "/tasks"
 )
 
-func TestWriteTaskHandler(t *testing.T) {
+func TestSaveTaskHandler(t *testing.T) {
 	mockService := &MockTaskService{
-		WriteTaskFunc: func(ctx context.Context, request *task.WriteTaskRequest) (*task.GetTaskResponse, error) {
+		SaveTaskFunc: func(ctx context.Context, request *task.WriteTaskRequest) (*task.GetTaskResponse, error) {
 			response := task.GetTaskResponse{
 				ID:          testID,
 				Title:       testTitle,
 				Description: testDescription,
-				UpdatedAt:   time.Now(),
+				UpdatedAt:   updatedAt,
 			}
 			return &response, nil
 		},
@@ -93,7 +94,7 @@ func TestWriteTaskHandler(t *testing.T) {
 	assert.Equal(t, testDescription, respBody["description"])
 }
 
-func TestWriteTaskHandlerWhenInvalidJSONRequest(t *testing.T) {
+func TestSaveTaskHandlerWhenInvalidJSONRequest(t *testing.T) {
 	mockService := &MockTaskService{}
 	handler := NewTaskHandler(mockService)
 
@@ -109,9 +110,9 @@ func TestWriteTaskHandlerWhenInvalidJSONRequest(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestWriteTaskHandlerWhenSvcWriteTaskFail(t *testing.T) {
+func TestSaveTaskHandlerWhenSvcSaveTaskFail(t *testing.T) {
 	mockService := &MockTaskService{
-		WriteTaskFunc: func(ctx context.Context, request *task.WriteTaskRequest) (*task.GetTaskResponse, error) {
+		SaveTaskFunc: func(ctx context.Context, request *task.WriteTaskRequest) (*task.GetTaskResponse, error) {
 			return nil, fmt.Errorf("write task error")
 		},
 	}
@@ -126,7 +127,95 @@ func TestWriteTaskHandlerWhenSvcWriteTaskFail(t *testing.T) {
 		Title:       testTitle,
 		Description: testDescription,
 	}
-	_, err := handler.taskSvc.WriteTask(r.Context(), &req)
+	_, err := handler.taskSvc.SaveTask(r.Context(), &req)
+	assert.Error(t, err)
+}
+
+func TestUpdateTaskHandler(t *testing.T) {
+	mockService := &MockTaskService{
+		SaveTaskFunc: func(ctx context.Context, request *task.WriteTaskRequest) (*task.GetTaskResponse, error) {
+			response := task.GetTaskResponse{
+				ID:          testID,
+				Title:       testTitle,
+				Description: testDescription,
+				UpdatedAt:   updatedAt,
+			}
+			return &response, nil
+		},
+	}
+
+	handler := NewTaskHandler(mockService)
+
+	r := httptest.NewRequest(http.MethodPost, tasksUrl+"/1", bytes.NewBufferString(validUpdateTaskRequest))
+	r = mux.SetURLVars(r, map[string]string{"id": "1"})
+	w := httptest.NewRecorder()
+	handler.UpdateTaskHandler(w, r)
+
+	resp := w.Result()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var respBody map[string]interface{}
+	err := json.NewDecoder(resp.Body).Decode(&respBody)
+	if err != nil {
+		t.Fatalf("failed to decode response body: %v", err)
+	}
+
+	assert.Equal(t, testTitle, respBody["title"])
+	assert.Equal(t, testDescription, respBody["description"])
+}
+
+func TestUpdateTaskHandlerInvalidRequest(t *testing.T) {
+	mockService := &MockTaskService{}
+	handler := NewTaskHandler(mockService)
+
+	r := httptest.NewRequest(http.MethodPost, tasksUrl+"/1", bytes.NewBufferString(invalidWriteTaskRequest))
+	r = mux.SetURLVars(r, map[string]string{"id": "1"})
+	w := httptest.NewRecorder()
+	handler.UpdateTaskHandler(w, r)
+
+	resp := w.Result()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	var respBody map[string]string
+	err := json.NewDecoder(resp.Body).Decode(&respBody)
+
+	assert.Error(t, err)
+}
+
+func TestUpdateTaskHandlerInvalidParamID(t *testing.T) {
+	mockService := &MockTaskService{}
+	handler := NewTaskHandler(mockService)
+
+	r := httptest.NewRequest(http.MethodPost, tasksUrl+"/1", bytes.NewBufferString(validUpdateTaskRequest))
+	w := httptest.NewRecorder()
+	handler.UpdateTaskHandler(w, r)
+
+	resp := w.Result()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	var respBody map[string]string
+	err := json.NewDecoder(resp.Body).Decode(&respBody)
+
+	assert.Error(t, err)
+}
+
+func TestUpdateTaskHandlerWhenSvcSaveFail(t *testing.T) {
+	mockService := &MockTaskService{
+		SaveTaskFunc: func(ctx context.Context, request *task.WriteTaskRequest) (*task.GetTaskResponse, error) {
+			return nil, fmt.Errorf("write task error")
+		},
+	}
+	handler := NewTaskHandler(mockService)
+
+	r := httptest.NewRequest(http.MethodPost, tasksUrl+"/1", bytes.NewBufferString(validUpdateTaskRequest))
+	r = mux.SetURLVars(r, map[string]string{"id": "1"})
+	w := httptest.NewRecorder()
+	handler.UpdateTaskHandler(w, r)
+
+	req := task.WriteTaskRequest{
+		ID:          testID,
+		Title:       testTitle,
+		Description: testDescription,
+	}
+	_, err := handler.taskSvc.SaveTask(r.Context(), &req)
 	assert.Error(t, err)
 }
 
@@ -138,7 +227,7 @@ func TestGetAllTaskHandler(t *testing.T) {
 				ID:          testID,
 				Title:       testTitle,
 				Description: testDescription,
-				UpdatedAt:   time.Now(),
+				UpdatedAt:   updatedAt,
 			}
 			responses = append(responses, response)
 			return responses, nil
